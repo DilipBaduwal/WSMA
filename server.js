@@ -223,6 +223,7 @@ async function detailFor(item) {
     id: detail.id,
     mediaType: type,
     title,
+    genreIds: (detail.genres || []).map(genre => genre.id),
     posterUrl: imageUrl(detail.poster_path || item.poster_path, 'w500'),
     backdropUrl: imageUrl(detail.backdrop_path || item.backdrop_path, 'w1280'),
     genres,
@@ -253,6 +254,24 @@ async function mapLimit(items, limit, callback) {
   return results;
 }
 
+async function discoverPages(params, pageCount = 3) {
+  const pages = await Promise.all(Array.from({ length: pageCount }, (_, index) =>
+    tmdbList('/discover/movie', { ...params, page: String(index + 1) })
+  ));
+  return pages.flat().map(item => ({ ...item, media_type: 'movie' }));
+}
+
+function takeDistinct(items, usedIds, limit = 6) {
+  const selected = [];
+  for (const item of items) {
+    if (usedIds.has(item.id)) continue;
+    usedIds.add(item.id);
+    selected.push(item);
+    if (selected.length >= limit) break;
+  }
+  return selected;
+}
+
 async function freshContent() {
   const today = new Date().toISOString().slice(0, 10);
   const recentReleaseStart = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -263,33 +282,56 @@ async function freshContent() {
     language: 'en-US',
     page: '1'
   };
-  const [recentMovies, popularMovies, acclaimedMovies] = await Promise.all([
-    tmdbList('/discover/movie', {
+  const [recentMovies, popularMovies, acclaimedMovies, actionMovies, dramaMovies, comedyMovies] = await Promise.all([
+    discoverPages({
       ...hindiFilters,
       'primary_release_date.gte': recentReleaseStart,
       'primary_release_date.lte': today,
       'vote_count.gte': '20',
-      sort_by: 'popularity.desc'
+      sort_by: 'primary_release_date.desc'
     }),
-    tmdbList('/discover/movie', {
+    discoverPages({
       ...hindiFilters,
       'vote_count.gte': '100',
       sort_by: 'popularity.desc'
     }),
-    tmdbList('/discover/movie', {
+    discoverPages({
       ...hindiFilters,
       'vote_count.gte': '300',
       sort_by: 'vote_average.desc'
-    })
+    }),
+    discoverPages({
+      ...hindiFilters,
+      with_genres: '28,53,80',
+      'vote_count.gte': '15',
+      sort_by: 'popularity.desc'
+    }, 2),
+    discoverPages({
+      ...hindiFilters,
+      with_genres: '18,10749',
+      'vote_count.gte': '15',
+      sort_by: 'popularity.desc'
+    }, 2),
+    discoverPages({
+      ...hindiFilters,
+      with_genres: '35,10751',
+      'vote_count.gte': '15',
+      sort_by: 'popularity.desc'
+    }, 2)
   ]);
-  const latestItems = recentMovies.slice(0, 6).map(item => ({ ...item, media_type: 'movie' }));
-  const trendingItems = popularMovies.slice(0, 6).map(item => ({ ...item, media_type: 'movie' }));
+  const usedIds = new Set();
+  const latestItems = takeDistinct(recentMovies, usedIds);
+  const trendingItems = takeDistinct(popularMovies, usedIds);
+  const acclaimedItems = takeDistinct(acclaimedMovies, usedIds);
   const collectionItems = {
     'new-hindi': latestItems,
     'popular-hindi': trendingItems,
-    'top-rated-hindi': acclaimedMovies.slice(0, 6).map(item => ({ ...item, media_type: 'movie' }))
+    'top-rated-hindi': acclaimedItems,
+    'action-thriller': takeDistinct(actionMovies, usedIds),
+    'drama-romance': takeDistinct(dramaMovies, usedIds),
+    'comedy-family': takeDistinct(comedyMovies, usedIds)
   };
-  const allItems = [...latestItems, ...trendingItems, ...collectionItems['top-rated-hindi']];
+  const allItems = Object.values(collectionItems).flat();
   const itemByKey = new Map();
   for (const item of allItems) {
     itemByKey.set(`${item.media_type}:${item.id}`, item);
@@ -307,8 +349,10 @@ async function freshContent() {
   const detailByKey = new Map(details.map(item => [`${item.mediaType}:${item.id}`, item]));
   const contentItems = details.map(item => ({ ...item, research: '', researchSources: [] }));
 
+  const recentKeys = new Set(latestItems.map(item => `${item.mediaType}:${item.id}`));
+  const researchItems = contentItems.filter(item => recentKeys.has(`${item.mediaType}:${item.id}`));
   if (tavilyKey) {
-    await mapLimit(contentItems, 3, async item => {
+    await mapLimit(researchItems, 3, async item => {
       try {
         const research = await tavily(item.title);
         item.research = research.research;
@@ -374,7 +418,7 @@ async function freshContent() {
   }).filter(Boolean);
 
   const result = {
-    cacheVersion: 3,
+    cacheVersion: 4,
     updatedAt: new Date().toISOString(),
     source: 'Metadata and artwork: TMDB · Research: Tavily · Editorial copy: Qwen local',
     latest: render(latestItems),
@@ -397,6 +441,24 @@ async function freshContent() {
         title: 'Highly rated Hindi films',
         description: 'Hindi films with a substantial number of TMDB ratings, ordered by average rating.',
         items: render(collectionItems['top-rated-hindi'])
+      },
+      {
+        id: 'action-thriller',
+        title: 'Action & thriller',
+        description: 'Hindi action, crime, and thriller films, distinct from the other lists.',
+        items: render(collectionItems['action-thriller'])
+      },
+      {
+        id: 'drama-romance',
+        title: 'Drama & romance',
+        description: 'Hindi dramas and romances, selected as a separate movie category.',
+        items: render(collectionItems['drama-romance'])
+      },
+      {
+        id: 'comedy-family',
+        title: 'Comedy & family',
+        description: 'Hindi comedies and family films for a lighter watch.',
+        items: render(collectionItems['comedy-family'])
       }
     ]
   };
@@ -405,9 +467,9 @@ async function freshContent() {
 }
 
 async function getContent() {
-  const cacheIsFresh = contentCache?.cacheVersion === 3
+  const cacheIsFresh = contentCache?.cacheVersion === 4
     && Date.now() - new Date(contentCache.updatedAt).getTime() < refreshInterval;
-  const cacheIsCompatible = contentCache?.cacheVersion === 3;
+  const cacheIsCompatible = contentCache?.cacheVersion === 4;
   if (cacheIsFresh) return contentCache;
   if (!tmdbApiKey && !tmdbAccessToken) {
     if (cacheIsCompatible) return contentCache;

@@ -2,6 +2,8 @@
 
 A Hindi movie discovery and community recommendation site. It shows recent and popular Hindi films, TMDB artwork and metadata, locally generated editorial guidance, streaming availability, and community watch votes.
 
+The daily catalogue is split into six non-overlapping classifications: recent releases, popular films, highly rated films, action & thriller, drama & romance, and comedy & family. Popularity and ratings reflect TMDB data, not verified box-office performance.
+
 ## Requirements
 
 - Node.js 18 or newer

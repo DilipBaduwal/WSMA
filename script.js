@@ -1,6 +1,6 @@
 const analyticsFallback = { totalVisits: 0, uniqueVisitors: 0 };
 let catalogue = [];
-let currentFilter = 'all';
+let currentFilter = 'new-hindi';
 let searchTerm = '';
 let currentItem = null;
 let collectionMembership = new Map();
@@ -135,7 +135,7 @@ function renderSpotlight(items) {
 function renderCollectionTiles(collections) {
   const element = document.querySelector('#featuredCollections');
   if (!element) return;
-  element.innerHTML = (collections || []).slice(0, 3).map(collection => {
+  element.innerHTML = (collections || []).map(collection => {
     const item = collection.items?.find(title => title.backdropUrl || title.posterUrl);
     const artwork = item?.backdropUrl || item?.posterUrl;
     return `<a class="collection" href="/collections.html#${escapeHtml(collection.id)}">
@@ -168,8 +168,7 @@ function visibleItems() {
       || `${item.title} ${(item.genres || []).join(' ')} ${(item.cast || []).join(' ')}`
         .toLowerCase().includes(searchTerm);
     const matchesFilter = currentFilter === 'all'
-      ? collectionMembership.get('new-hindi')?.has(key) ?? true
-      : collectionMembership.get(currentFilter)?.has(key);
+      || collectionMembership.get(currentFilter)?.has(key);
     return matchesSearch && matchesFilter;
   });
 }
@@ -341,6 +340,7 @@ async function loadContent() {
       collection.id,
       new Set((collection.items || []).map(itemKey))
     ]));
+    collectionMembership.set('all', new Set(catalogue.map(itemKey)));
     renderCatalogue();
     renderSpotlight(latest);
     renderCollectionTiles(collections);
