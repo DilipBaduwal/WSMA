@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111315">
+  <meta name="description" content="Find your next Hindi movie with current posters, release details, streaming options, ratings, and community watch votes.">
+  <title>What's On Screen — Hindi films to watch</title>
+  <link rel="preconnect" href="https://image.tmdb.org">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="What's On Screen home">
+      <img src="logo.jpeg" alt="">
+      <span>WHAT'S ON<br><b>SCREEN</b></span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a class="nav-active" href="/">Discover</a>
+      <a href="/latest.html">New & Upcoming</a>
+      <a href="/trending.html">Popular</a>
+      <a href="/collections.html">Collections</a>
+      <a href="/reviews.html">Reviews</a>
+    </nav>
+    <div class="actions">
+      <label class="search-box"><span aria-hidden="true">⌕</span><input id="movieSearch" type="search" placeholder="Find a film or show" autocomplete="off"></label>
+      <a class="join" href="#community">Join the conversation</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="live-dot"></span> YOUR INDIAN SCREEN GUIDE</div>
+        <h1>Less scrolling.<br><em>Better watching.</em></h1>
+        <p>New releases, thoughtful context, and real audience signals to help you decide what deserves your evening.</p>
+        <a class="primary" href="#latest">Find something to watch <span>↘</span></a>
+        <div class="hero-proof"><span>Daily catalogue refresh</span><i></i><span>Hindi films, India first</span></div>
+      </div>
+      <div class="spotlight-wrap" id="spotlight">
+        <div class="spotlight-loading">Loading today's picks…</div>
+      </div>
+    </section>
+
+    <section class="trust-strip" aria-label="How the guide works">
+      <div><b>01</b><span>Discover films & series</span></div>
+      <div><b>02</b><span>Get the context, not spoilers</span></div>
+      <div><b>03</b><span>See what viewers think</span></div>
+    </section>
+
+    <section class="section" id="latest">
+      <div class="section-head">
+        <div><div class="eyebrow">RECENT HINDI MOVIES</div><h2>Hindi, new & notable</h2></div>
+        <a class="view-all" href="/latest.html">All new releases ↗</a>
+      </div>
+      <div class="filters" id="catalogFilters" aria-label="Filter titles">
+        <button class="active" type="button" data-filter="all">All Hindi</button>
+        <button type="button" data-filter="new-hindi">Recent releases</button>
+        <button type="button" data-filter="popular-hindi">Popular</button>
+        <button type="button" data-filter="top-rated-hindi">Top rated</button>
+      </div>
+      <div class="media-grid" id="latestGrid" aria-live="polite"><p class="loading-note">Finding fresh titles…</p></div>
+      <p class="empty-state" id="emptyState" hidden>No titles match those filters. Try another one.</p>
+    </section>
+
+    <section class="dark-section" id="trending">
+      <div class="section-head">
+        <div><div class="eyebrow">POPULAR HINDI MOVIES</div><h2>Getting attention</h2></div>
+        <a class="view-all" href="/trending.html">See popular Hindi films ↗</a>
+      </div>
+      <div class="trend-grid" id="trendGrid" aria-live="polite"><p class="loading-note">Loading popular titles…</p></div>
+    </section>
+
+    <section class="editorial-band" id="community">
+      <div class="community-mark" aria-hidden="true">WOS<br><span>●</span></div>
+      <div>
+        <div class="eyebrow">A BETTER WAY TO PICK</div>
+        <h2>Not a score.<br><em>A real decision.</em></h2>
+        <p>Open any title to see who it might suit, then add your “I'd watch” or “Not for me” vote. Community signals grow as viewers take part.</p>
+        <a class="text-link" href="/reviews.html">Explore reviews & recommendations ↗</a>
+      </div>
+      <div class="community-stats">
+        <b>YOU</b><span>make the watchlist more useful</span>
+        <small>Votes are community opinions, separate from TMDB ratings.</small>
+      </div>
+    </section>
+
+    <section class="section collection-section" id="collections">
+      <div class="section-head">
+        <div><div class="eyebrow">RECENT, POPULAR, TOP-RATED</div><h2>Hindi film collections</h2></div>
+        <a class="view-all" href="/collections.html">Browse collections ↗</a>
+      </div>
+      <div class="collection-grid" id="featuredCollections"><p class="loading-note">Loading Hindi collections…</p></div>
+    </section>
+  </main>
+
+  <footer>
+    <a class="brand" href="/"><img src="logo.jpeg" alt=""><span>WHAT'S ON<br><b>SCREEN</b></span></a>
+    <span class="footer-note">Made for Indian screens, every day.</span>
+    <span class="tmdb-attribution">This product uses the <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">TMDB API</a> but is not endorsed or certified by TMDB.</span>
+    <details class="site-metrics"><summary>Site notes</summary><span>Visits <b id="totalVisits">—</b> · Unique <b id="uniqueVisitors">—</b></span></details>
+  </footer>
+
+  <dialog class="movie-dialog" id="movieDialog" aria-labelledby="dialogTitle">
+    <button class="dialog-close" type="button" aria-label="Close details">×</button>
+    <div id="movieDialogContent"></div>
+  </dialog>
+  <script src="script.js"></script>
+</body>
+</html>
