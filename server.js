@@ -43,7 +43,7 @@ function send(res, status, type, data) {
 }
 
 function saveAnalytics() {
-  fs.writeFileSync(store, JSON.stringify(db, null, 2));
+  try { fs.writeFileSync(store, JSON.stringify(db, null, 2)); } catch (_) { /* Vercel filesystem is read-only. */ }
 }
 
 function communityKey(mediaType, id) {
@@ -538,7 +538,7 @@ async function freshContent() {
       }
     ]
   };
-  fs.writeFileSync(cacheFile, JSON.stringify(result, null, 2));
+  try { fs.writeFileSync(cacheFile, JSON.stringify(result, null, 2)); } catch (_) { /* Cache is ephemeral on Vercel. */ }
   return result;
 }
 
@@ -570,7 +570,7 @@ async function getContent() {
   }
 }
 
-http.createServer(async (req, res) => {
+async function handler(req, res) {
   try {
     const requestUrl = new URL(req.url, 'http://localhost');
     if (requestUrl.pathname === '/api/image') {
@@ -621,7 +621,7 @@ http.createServer(async (req, res) => {
       community[key] ||= { votes: {} };
       const voter = voterKey(req, res);
       community[key].votes[voter] = vote.verdict;
-      fs.writeFileSync(communityFile, JSON.stringify(community, null, 2));
+      try { fs.writeFileSync(communityFile, JSON.stringify(community, null, 2)); } catch (_) { /* Use a database for durable votes in production. */ }
       return send(res, 200, 'application/json', JSON.stringify({
         [key]: voteSummary(community[key], voter)
       }));
@@ -665,6 +665,12 @@ http.createServer(async (req, res) => {
     console.error(error.message);
     return send(res, 503, 'application/json', JSON.stringify({ error: error.message || 'Content refresh unavailable' }));
   }
-}).listen(process.env.PORT || 3000, () => {
-  console.log(`Running on http://localhost:${process.env.PORT || 3000}`);
-});
+}
+
+if (require.main === module) {
+  http.createServer(handler).listen(process.env.PORT || 3000, () => {
+    console.log(`Running on http://localhost:${process.env.PORT || 3000}`);
+  });
+}
+
+module.exports = handler;
