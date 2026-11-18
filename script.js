@@ -1,10 +1,13 @@
 const analyticsFallback = { totalVisits: 0, uniqueVisitors: 0 };
 let catalogue = [];
+let searchCatalogue = [];
 let currentFilter = 'new-hindi';
-let searchTerm = '';
 let currentItem = null;
 let collectionMembership = new Map();
 let dialog;
+let searchTimer;
+let activeSearch;
+let lastSearchQuery = '';
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, character => ({
@@ -164,12 +167,9 @@ function renderCollectionPage(collections) {
 function visibleItems() {
   return catalogue.filter(item => {
     const key = itemKey(item);
-    const matchesSearch = !searchTerm
-      || `${item.title} ${(item.genres || []).join(' ')} ${(item.cast || []).join(' ')}`
-        .toLowerCase().includes(searchTerm);
     const matchesFilter = currentFilter === 'all'
       || collectionMembership.get(currentFilter)?.has(key);
-    return matchesSearch && matchesFilter;
+    return matchesFilter;
   });
 }
 
@@ -201,8 +201,76 @@ function initDialog() {
     const button = event.target.closest('[data-open-title]');
     if (!button) return;
     const item = catalogue.find(candidate => itemKey(candidate) === button.dataset.openTitle);
-    if (item) openTitle(item);
+    if (item) {
+      document.querySelector('#searchResults')?.setAttribute('hidden', '');
+      openTitle(item);
+    }
   });
+}
+
+function showSearchMessage(message, className = '') {
+  const results = document.querySelector('#searchResults');
+  if (!results) return;
+  results.innerHTML = `<p class="search-message ${className}" role="status">${escapeHtml(message)}</p>`;
+  results.hidden = false;
+}
+
+function renderSearchResults(items) {
+  const results = document.querySelector('#searchResults');
+  if (!results) return;
+  if (!items.length) {
+    showSearchMessage("Sorry, we couldn't find that movie. We're fixing our catalogue — try another title.");
+    return;
+  }
+  searchCatalogue = items;
+  const knownItems = new Map(catalogue.map(item => [itemKey(item), item]));
+  for (const item of items) knownItems.set(itemKey(item), item);
+  catalogue = [...knownItems.values()];
+  results.innerHTML = `<p class="search-message" role="status">TMDB results · ${items.length} ${items.length === 1 ? 'movie' : 'movies'}</p>
+    ${items.map(item => `<button class="search-result" type="button" data-open-title="${escapeHtml(itemKey(item))}">
+      <span class="search-result-poster">${item.posterUrl
+        ? `<img src="${imageUrl(item.posterUrl)}" alt="" loading="lazy" data-title-image>`
+        : '<span aria-hidden="true">🎬</span>'}</span>
+      <span class="search-result-copy"><b>${escapeHtml(item.title)}</b>
+        <small>${escapeHtml([item.releaseDate?.slice(0, 4), item.language, item.genres?.slice(0, 2).join(' · ')].filter(Boolean).join(' · ') || 'Movie details from TMDB')}</small>
+        <span>${tmdbRating(item)}</span>
+      </span>
+      <span class="search-result-arrow" aria-hidden="true">↗</span>
+    </button>`).join('')}`;
+  results.hidden = false;
+}
+
+async function searchMovies(rawQuery, force = false) {
+  const query = rawQuery.trim();
+  const results = document.querySelector('#searchResults');
+  if (!results) return;
+  if (query.length < 2) {
+    activeSearch?.abort();
+    lastSearchQuery = '';
+    if (query) showSearchMessage('Enter at least 2 characters to search TMDB.');
+    else results.hidden = true;
+    return;
+  }
+  if (!force && query === lastSearchQuery && !activeSearch) return;
+  activeSearch?.abort();
+  activeSearch = new AbortController();
+  const controller = activeSearch;
+  lastSearchQuery = query;
+  showSearchMessage('Searching TMDB…');
+  try {
+    const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`, { signal: controller.signal });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `Search failed (${response.status})`);
+    if (activeSearch !== controller) return;
+    renderSearchResults(Array.isArray(data.items) ? data.items : []);
+    activeSearch = null;
+  } catch (error) {
+    if (error.name === 'AbortError') return;
+    if (activeSearch !== controller) return;
+    console.error(error);
+    showSearchMessage('Sorry, movie search is temporarily unavailable. Please try again shortly.', 'search-error');
+    activeSearch = null;
+  }
 }
 
 function dialogMarkup(item, community = null) {
@@ -335,7 +403,7 @@ async function loadContent() {
     const trending = Array.isArray(data.trending) ? data.trending : [];
     const collections = Array.isArray(data.collections) ? data.collections : [];
     const allTitles = [...latest, ...trending, ...collections.flatMap(collection => collection.items || [])];
-    catalogue = [...new Map(allTitles.map(item => [itemKey(item), item])).values()];
+    catalogue = [...new Map([...allTitles, ...searchCatalogue].map(item => [itemKey(item), item])).values()];
     collectionMembership = new Map(collections.map(collection => [
       collection.id,
       new Set((collection.items || []).map(itemKey))
@@ -398,7 +466,18 @@ document.querySelector('#catalogFilters')?.addEventListener('click', event => {
   renderCatalogue();
 });
 
-document.querySelector('#movieSearch')?.addEventListener('input', event => {
-  searchTerm = event.target.value.trim().toLowerCase();
-  renderCatalogue();
+const movieSearch = document.querySelector('#movieSearch');
+movieSearch?.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => searchMovies(movieSearch.value), 350);
+});
+document.querySelector('#movieSearchForm')?.addEventListener('submit', event => {
+  event.preventDefault();
+  clearTimeout(searchTimer);
+  searchMovies(movieSearch?.value || '', true);
+});
+document.addEventListener('click', event => {
+  if (!event.target.closest('.search-wrap')) {
+    document.querySelector('#searchResults')?.setAttribute('hidden', '');
+  }
 });

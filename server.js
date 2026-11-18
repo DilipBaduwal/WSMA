@@ -34,6 +34,8 @@ let db = readJson(store, { totalVisits: 0, ips: [] });
 let contentCache = readJson(cacheFile, null);
 let community = readJson(communityFile, {});
 let refreshInProgress;
+const verifiedSearchTitles = new Map();
+const searchTitleLifetime = 24 * 60 * 60 * 1000;
 
 function send(res, status, type, data) {
   res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store' });
@@ -49,6 +51,9 @@ function communityKey(mediaType, id) {
 }
 
 function isKnownTitle(mediaType, id) {
+  const searchKey = communityKey(mediaType, id);
+  const verifiedUntil = verifiedSearchTitles.get(searchKey);
+  if (verifiedUntil && verifiedUntil > Date.now()) return true;
   const lists = [
     contentCache?.latest || [],
     contentCache?.trending || [],
@@ -239,6 +244,77 @@ async function detailFor(item) {
     runtime: detail.runtime || detail.episode_run_time?.[0] || null,
     label: type === 'tv' ? 'SERIES' : 'MOVIE'
   };
+}
+
+async function searchMovies(query) {
+  const results = await tmdbList('/search/movie', {
+    query,
+    include_adult: 'false',
+    region: 'IN',
+    language: 'hi-IN',
+    page: '1'
+  });
+  const normalizeTitle = title => String(title || '').trim().toLocaleLowerCase();
+  const queryTitle = normalizeTitle(query);
+  const exactMatch = item => [item.title, item.original_title]
+    .some(title => normalizeTitle(title) === queryTitle);
+  const indianLanguages = new Set(['hi', 'ta', 'te', 'ml', 'kn', 'bn', 'mr', 'pa', 'gu']);
+  const movies = [...results]
+    .sort((a, b) => Number(exactMatch(b)) - Number(exactMatch(a))
+      || Number(indianLanguages.has(b.original_language)) - Number(indianLanguages.has(a.original_language)))
+    .slice(0, 6)
+    .map(item => ({ ...item, media_type: 'movie' }));
+  const items = await mapLimit(movies, 2, async item => {
+    try {
+      const detail = await detailFor(item);
+      return {
+        ...detail,
+        description: '',
+        bestFor: '',
+        mayNotSuit: '',
+        researchSources: []
+      };
+    } catch (error) {
+      console.error(`TMDB search detail failed for "${item.title}": ${error.message}`);
+      return {
+        id: item.id,
+        mediaType: 'movie',
+        title: item.title || item.original_title,
+        genreIds: item.genre_ids || [],
+        posterUrl: imageUrl(item.poster_path, 'w500'),
+        backdropUrl: imageUrl(item.backdrop_path, 'w1280'),
+        genres: [],
+        language: (item.original_language || '').toUpperCase(),
+        releaseDate: item.release_date || null,
+        cast: [],
+        director: null,
+        rating: Number.isFinite(item.vote_average) ? item.vote_average : null,
+        ratingVotes: Number.isFinite(item.vote_count) ? item.vote_count : 0,
+        ratingSource: 'TMDB',
+        streamingPlatforms: [],
+        overview: item.overview || '',
+        runtime: null,
+        label: 'MOVIE',
+        description: '',
+        bestFor: '',
+        mayNotSuit: '',
+        researchSources: []
+      };
+    }
+  });
+  const now = Date.now();
+  for (const item of items) {
+    const key = communityKey(item.mediaType, item.id);
+    verifiedSearchTitles.delete(key);
+    verifiedSearchTitles.set(key, now + searchTitleLifetime);
+  }
+  while (verifiedSearchTitles.size > 1000) {
+    verifiedSearchTitles.delete(verifiedSearchTitles.keys().next().value);
+  }
+  for (const [key, expiresAt] of verifiedSearchTitles) {
+    if (expiresAt <= now) verifiedSearchTitles.delete(key);
+  }
+  return items;
 }
 
 async function mapLimit(items, limit, callback) {
@@ -553,6 +629,16 @@ http.createServer(async (req, res) => {
     if (requestUrl.pathname === '/api/content') {
       const data = await getContent();
       return send(res, 200, 'application/json', JSON.stringify(data));
+    }
+    if (requestUrl.pathname === '/api/search' && req.method === 'GET') {
+      const query = (requestUrl.searchParams.get('query') || '').trim();
+      if (query.length < 2 || query.length > 100) {
+        return send(res, 400, 'application/json', JSON.stringify({
+          error: 'Search needs between 2 and 100 characters.'
+        }));
+      }
+      const items = await searchMovies(query);
+      return send(res, 200, 'application/json', JSON.stringify({ items }));
     }
 
     const file = requestUrl.pathname === '/' ? 'index.html' : decodeURIComponent(requestUrl.pathname.slice(1));

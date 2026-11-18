@@ -32,6 +32,7 @@ node server.js
 Open [http://localhost:3000](http://localhost:3000). The catalogue refreshes daily and is cached locally.
 
 The site uses TMDB for movie metadata, ratings, posters, backdrops, and Indian streaming availability. It is not endorsed or certified by TMDB. Poster and backdrop images are loaded from TMDB; the site does not copy artwork from research articles.
+The search field queries TMDB directly and opens matching titles in the detail and community-voting view.
 
 ## Data files
 

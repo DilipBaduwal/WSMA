@@ -23,8 +23,16 @@
       <a href="/reviews.html">Reviews</a>
     </nav>
     <div class="actions">
-      <label class="search-box"><span aria-hidden="true">⌕</span><input id="movieSearch" type="search" placeholder="Find a film or show" autocomplete="off"></label>
-      <a class="join" href="#community">Join the conversation</a>
+      <div class="search-wrap">
+        <form class="search-box" id="movieSearchForm" role="search">
+          <label class="visually-hidden" for="movieSearch">Search movies on TMDB</label>
+          <span aria-hidden="true">⌕</span>
+          <input id="movieSearch" type="search" placeholder="Search movies" autocomplete="off" maxlength="100">
+          <button type="submit">Search</button>
+        </form>
+        <div class="search-results" id="searchResults" role="region" aria-label="Movie search results" aria-live="polite" hidden></div>
+      </div>
+      <a class="join" href="/#community">Join the conversation</a>
     </div>
   </header>
 
