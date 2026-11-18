@@ -32,7 +32,7 @@ function itemKey(item) {
 }
 
 function imageUrl(url) {
-  return url ? escapeHtml(url) : '';
+  return url ? `/api/image?url=${encodeURIComponent(url)}` : '';
 }
 
 function placeholder() {

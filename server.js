@@ -573,6 +573,19 @@ async function getContent() {
 http.createServer(async (req, res) => {
   try {
     const requestUrl = new URL(req.url, 'http://localhost');
+    if (requestUrl.pathname === '/api/image') {
+      const target = requestUrl.searchParams.get('url');
+      if (!target || !/^https:\/\/(image\.tmdb\.org|images\.unsplash\.com)\//.test(target)) {
+        return send(res, 400, 'text/plain', 'Unsupported image source');
+      }
+      const imageResponse = await fetch(target);
+      if (!imageResponse.ok) return send(res, imageResponse.status, 'text/plain', 'Image unavailable');
+      res.writeHead(200, {
+        'Content-Type': imageResponse.headers.get('content-type') || 'image/jpeg',
+        'Cache-Control': 'public, max-age=86400'
+      });
+      return res.end(Buffer.from(await imageResponse.arrayBuffer()));
+    }
     if (requestUrl.pathname === '/api/community' && req.method === 'GET') {
       const voter = voterKey(req, res);
       const entries = requestUrl.searchParams.get('items')?.split(',').slice(0, 24) || [];
